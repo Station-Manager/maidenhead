@@ -399,65 +399,52 @@ func isUppercaseAtPosition(s string, pos int) (bool, error) {
 		return false, fmt.Errorf("position %d is out of range for string '%s'", pos, s)
 	}
 	char := rune(s[pos])
+
 	return unicode.IsUpper(char), nil
 }
 
-// isUpperARAtPosition checks A-R specifically (ASCII A..R)
 func isUpperARAtPosition(s string, pos int) (bool, error) {
-	if ok, err := isUppercaseAtPosition(s, pos); !ok || err != nil {
+	ok, err := isUppercaseAtPosition(s, pos)
+	if err != nil || !ok {
 		return ok, err
-	}
-	c := s[pos]
-	return c >= 'A' && c <= 'R', nil
-}
-
-func isLowercaseAtPosition(s string, pos int) (bool, error) {
-	if pos < 0 || pos >= len(s) {
-		return false, fmt.Errorf("position %d out of bounds for string of length %d", pos, len(s))
 	}
 	char := rune(s[pos])
-	return unicode.IsLower(char), nil
+	if char < 'A' || char > 'R' {
+		return false, nil
+	}
+	return true, nil
 }
 
-// isLowerAXAtPosition checks a-x specifically
+func isDigitAtPosition(s string, pos int) (bool, error) {
+	if pos < 0 || pos >= len(s) {
+		return false, fmt.Errorf("position %d is out of range for string '%s'", pos, s)
+	}
+	char := s[pos]
+	if char < '0' || char > '9' {
+		return false, nil
+	}
+	return true, nil
+}
+
 func isLowerAXAtPosition(s string, pos int) (bool, error) {
-	if ok, err := isLowercaseAtPosition(s, pos); !ok || err != nil {
-		return ok, err
+	if pos < 0 || pos >= len(s) {
+		return false, fmt.Errorf("position %d is out of range for string '%s'", pos, s)
 	}
-	c := s[pos]
-	return c >= 'a' && c <= 'x', nil
+	char := rune(s[pos])
+
+	if !unicode.IsLower(char) {
+		return false, nil
+	}
+	if char < 'a' || char > 'x' {
+		return false, nil
+	}
+	return true, nil
 }
 
-func isDigitAtPosition(input string, position int) (bool, error) {
-	// Check if the position is within bounds
-	if position < 0 || position >= len(input) {
-		return false, fmt.Errorf("position %d is out of range for string length %d", position, len(input))
-	}
-	// Get the rune (character) at the specified position
-	r := rune(input[position])
-
-	// Check if it's a digit
-	return unicode.IsDigit(r), nil
-}
-
-// toRadians converts an angle from degrees to radians.
-//
-// Parameters:
-//   - degrees: The angle in degrees
-//
-// Returns:
-//   - float64: The angle in radians
 func toRadians(degrees float64) float64 {
-	return degrees * math.Pi / 180.0
+	return degrees * math.Pi / 180
 }
 
-// toDegrees converts an angle from radians to degrees.
-//
-// Parameters:
-//   - radians: The angle in radians
-//
-// Returns:
-//   - float64: The angle in degrees
 func toDegrees(radians float64) float64 {
-	return radians * 180.0 / math.Pi
+	return radians * 180 / math.Pi
 }

@@ -2,6 +2,7 @@ package maidenhead
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,21 @@ func TestNormalizeAndValidate_OK_MixedCase(t *testing.T) {
 
 	if !almostEqual(lat1, lat2, 1e-9) || !almostEqual(lon1, lon2, 1e-9) {
 		t.Fatalf("expected same coords for different cases: (%.6f,%.6f) vs (%.6f,%.6f)", lat1, lon1, lat2, lon2)
+	}
+}
+
+func TestNormalizeGridSquare_Lengths(t *testing.T) {
+	// length != 6 should be returned unchanged
+	cases := []string{"J", "JN58T", "JN58TDX", ""}
+	for _, in := range cases {
+		if out := normalizeGridSquare(in); out != in {
+			t.Errorf("normalizeGridSquare(%q) = %q, want unchanged", in, out)
+		}
+	}
+
+	// proper 6-char should be normalized
+	if got := normalizeGridSquare("jN58Td"); got != "JN58td" {
+		t.Errorf("normalizeGridSquare mixed case got %q want %q", got, "JN58td")
 	}
 }
 
@@ -86,6 +102,25 @@ func TestValidationErrors(t *testing.T) {
 	}
 }
 
+func TestValidationSpecificPositionErrors(t *testing.T) {
+	cases := []struct {
+		in       string
+		contains string
+	}{
+		{"ZN58td", "first character must be A-R"},
+		{"JZ58td", "second character must be A-R"},
+		{"JNa8td", "third character must be a digit"},
+		{"JN5xtd", "fourth character must be a digit"},
+		{"JN58Yd", "fifth character must be a-x"},
+		{"JN58tA", "sixth character must be a-x"},
+	}
+	for _, tc := range cases {
+		if err := validateInput(tc.in); err == nil || !strings.Contains(err.Error(), tc.contains) {
+			t.Errorf("validateInput(%q) error %v, want to contain %q", tc.in, err, tc.contains)
+		}
+	}
+}
+
 func TestCalculateBearing_Known(t *testing.T) {
 	// From London (51.5074, -0.1278) to New York (40.7128, -74.0060)
 	b := CalculateBearing(51.5074, -0.1278, 40.7128, -74.0060)
@@ -93,6 +128,30 @@ func TestCalculateBearing_Known(t *testing.T) {
 	if !almostEqual(b, 288.3, 1.0) {
 		// allow 1.0 deg tolerance to account for model differences
 		t.Errorf("bearing got %.3f want approx 288.3", b)
+	}
+}
+
+func TestCalculateBearing_EdgeCases(t *testing.T) {
+	cases := []struct {
+		name string
+		lat1 float64
+		lon1 float64
+		lat2 float64
+		lon2 float64
+		min  float64
+		max  float64
+	}{
+		{"same point", 0, 0, 0, 0, 0, 0},
+		{"due north", 0, 0, 10, 0, -1, 1},
+		{"due east", 0, 0, 0, 10, 89, 91},
+		{"due south", 10, 0, 0, 0, 179, 181},
+		{"due west", 0, 10, 0, 0, 269, 271},
+	}
+	for _, tc := range cases {
+		b := CalculateBearing(tc.lat1, tc.lon1, tc.lat2, tc.lon2)
+		if b < tc.min || b > tc.max {
+			t.Errorf("%s: bearing=%.2f not in [%.2f, %.2f]", tc.name, b, tc.min, tc.max)
+		}
 	}
 }
 
@@ -151,5 +210,29 @@ func TestGetLocation(t *testing.T) {
 	}
 	if loc.ShortPathDistanceKm <= 0 || loc.LongPathDistanceKm <= 0 {
 		t.Errorf("distances should be positive: %+v", loc)
+	}
+}
+
+func TestGetLocation_ErrorPropagation(t *testing.T) {
+	if _, err := GetLocation("BADGRID", "FN31pr"); err == nil {
+		t.Fatalf("expected error for bad local grid")
+	}
+	if _, err := GetLocation("JN58td", "BADGRID"); err == nil {
+		t.Fatalf("expected error for bad remote grid")
+	}
+}
+
+func TestShortPathDistance_ErrorCases(t *testing.T) {
+	if _, _, err := GetShortPathDistance("BAD", "JN58td"); err == nil || !strings.Contains(err.Error(), "invalid local grid square") {
+		t.Errorf("expected invalid local grid square error, got %v", err)
+	}
+	if _, _, err := GetShortPathDistance("JN58td", "BAD"); err == nil || !strings.Contains(err.Error(), "invalid remote grid square") {
+		t.Errorf("expected invalid remote grid square error, got %v", err)
+	}
+}
+
+func TestLongPathDistance_ErrorCases(t *testing.T) {
+	if _, _, err := GetLongPathDistance("BAD", "JN58td"); err == nil {
+		t.Errorf("expected error from GetLongPathDistance when short path fails")
 	}
 }
